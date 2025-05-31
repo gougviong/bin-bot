@@ -1,0 +1,50 @@
+import requests
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+
+API_URL = "https://lookup.binbase.com/lookup/"
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("欢迎使用BIN查询机器人！请输入6位数字BIN号进行查询。")
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("发送6位BIN号，我帮你查卡片信息。")
+
+async def handle_bin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    bin_code = update.message.text.strip()
+    if not bin_code.isdigit() or len(bin_code) != 6:
+        await update.message.reply_text("请输入6位数字的BIN号，例如：457173")
+        return
+
+    try:
+        response = requests.get(API_URL + bin_code)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("results"):
+                info = data["results"][0]
+                text = (
+                    f"卡号前6位: {bin_code}\n"
+                    f"品牌: {info.get('brand', '未知')}\n"
+                    f"卡类型: {info.get('type', '未知')}\n"
+                    f"银行卡名: {info.get('bank', {}).get('name', '未知')}\n"
+                    f"国家: {info.get('country', {}).get('name', '未知')}"
+                )
+                await update.message.reply_text(text)
+            else:
+                await update.message.reply_text("未查询到该BIN信息。")
+        else:
+            await update.message.reply_text(f"查询失败，状态码: {response.status_code}")
+    except Exception as e:
+        await update.message.reply_text(f"查询出错: {e}")
+
+def main():
+    app = ApplicationBuilder().token("8117714845:AAGaa1hXz1CMgxQSCRGJHWSzeFlB-lcFllY").build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_bin))
+
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
